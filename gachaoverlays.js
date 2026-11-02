@@ -19,6 +19,7 @@
   }
 
   const AUTOEXEC_DISABLED_KEY = "osugachaOverlayAutoexecDisabled";
+  const QUICKSELL_ALERTS_ENABLED_KEY = "osugachaQuicksellAlertsEnabled";
   const bindConsoleCommand = (name, action) => {
     Object.defineProperty(window, name, {
       configurable: true,
@@ -46,6 +47,8 @@
 
   const STYLE_ID = "osugacha-local-deal-style";
   const MARKET_STATS_ID = "osugacha-market-flipping-stats";
+  const PROFITABLE_LISTINGS_ID = "osugacha-profitable-listings";
+  const QUICKSELL_NOTIFICATIONS_ID = "osugacha-quicksell-notifications";
   const OVERLAY_CLASS = "osugacha-local-deal-overlay";
   const MIN_COMPS = 2;
   const MARKET_LISTING_FEE_RATE = 0.02;
@@ -85,6 +88,7 @@
     path === "/collection" ||
     path === "/inventory" ||
     path === "/packs" ||
+    path === "/settings" ||
     path === "/market" ||
     CARD_PATH.test(path);
 
@@ -95,6 +99,9 @@
   window.osugachaCardValueOverlayStop?.();
   document.getElementById(STYLE_ID)?.remove();
   document.getElementById(MARKET_STATS_ID)?.remove();
+  document.getElementById(PROFITABLE_LISTINGS_ID)?.remove();
+  document.getElementById(QUICKSELL_NOTIFICATIONS_ID)?.remove();
+  document.getElementById("osugacha-quicksell-alert-setting")?.remove();
   document.getElementById(CARD_VALUE_STYLE_ID)?.remove();
   document.getElementById("osugacha-local-deal-status")?.remove();
   document.getElementById("osugacha-card-value-status")?.remove();
@@ -474,6 +481,63 @@
     };
   }
 
+  function startSettingsOverlay() {
+    let stopped = false;
+    const settingId = "osugacha-quicksell-alert-setting";
+    const syncSetting = () => {
+      if (stopped) return;
+      const settingsRows = document.querySelector("main .set-section .set-rows");
+      if (!settingsRows || document.getElementById(settingId)) return;
+
+      const row = document.createElement("div");
+      row.id = settingId;
+      row.className = "set-row";
+      const label = document.createElement("span");
+      label.className = "set-row-label";
+      const category = document.createElement("small");
+      category.textContent = "Market alerts";
+      const title = document.createElement("b");
+      title.textContent = "Quicksell deals";
+      const description = document.createElement("span");
+      description.textContent =
+        "Show alerts for Legendary, Mythic, and Divine cards listed below quicksell value.";
+      label.append(category, title, description);
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "btn ghost";
+      toggle.setAttribute("aria-pressed", "true");
+      const updateToggle = () => {
+        const enabled =
+          localStorage.getItem(QUICKSELL_ALERTS_ENABLED_KEY) !== "false";
+        toggle.textContent = `Quicksell alerts: ${enabled ? "On" : "Off"}`;
+        toggle.setAttribute("aria-pressed", String(enabled));
+      };
+      toggle.addEventListener("click", () => {
+        const enabled =
+          localStorage.getItem(QUICKSELL_ALERTS_ENABLED_KEY) !== "false";
+        localStorage.setItem(QUICKSELL_ALERTS_ENABLED_KEY, String(!enabled));
+        updateToggle();
+      });
+      updateToggle();
+      row.append(label, toggle);
+      settingsRows.append(row);
+    };
+
+    const observer = new MutationObserver(syncSetting);
+    observer.observe(document.querySelector("main") || document.body, {
+      childList: true,
+      subtree: true,
+    });
+    syncSetting();
+
+    return () => {
+      stopped = true;
+      observer.disconnect();
+      document.getElementById(settingId)?.remove();
+    };
+  }
+
   function startMarketOverlay() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
@@ -500,6 +564,107 @@
       box-shadow: 0 1px 5px rgba(0, 0, 0, .45);
       text-align: center;
       overflow-wrap: anywhere;
+    }
+    #${PROFITABLE_LISTINGS_ID} {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      z-index: 2147483647;
+      width: min(360px, calc(100vw - 24px));
+      max-height: 72vh;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .25);
+      border-radius: 10px;
+      background: rgba(20, 20, 24, .97);
+      color: #fff;
+      font: 600 12px/1.45 system-ui, sans-serif;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, .45);
+    }
+    #${PROFITABLE_LISTINGS_ID} button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      padding: 10px 12px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    #${PROFITABLE_LISTINGS_ID} button:hover,
+    #${PROFITABLE_LISTINGS_ID} button:focus-visible {
+      background: rgba(255, 255, 255, .08);
+    }
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listings-body] {
+      max-height: calc(72vh - 44px);
+      overflow: auto;
+      border-top: 1px solid rgba(255, 255, 255, .16);
+    }
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listings-message] {
+      margin: 0;
+      padding: 12px;
+      color: rgba(255, 255, 255, .75);
+    }
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listings-message][data-error="true"] {
+      color: #ffb0b0;
+    }
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listing] {
+      display: block;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, .12);
+      color: inherit;
+      text-decoration: none;
+    }
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listing]:last-child {
+      border-bottom: 0;
+    }
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listing]:hover,
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listing]:focus-visible {
+      background: rgba(255, 102, 170, .16);
+    }
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listing-title] {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #${PROFITABLE_LISTINGS_ID} [data-profitable-listing-details] {
+      display: block;
+      margin-top: 3px;
+      color: rgba(255, 255, 255, .72);
+      font-size: 11px;
+    }
+    #${QUICKSELL_NOTIFICATIONS_ID} {
+      position: fixed;
+      bottom: 12px;
+      left: 12px;
+      z-index: 2147483647;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+      width: min(340px, calc(100vw - 24px));
+      max-height: 45vh;
+      overflow-y: auto;
+      pointer-events: auto;
+    }
+    #${QUICKSELL_NOTIFICATIONS_ID} a {
+      display: block;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 102, 170, .65);
+      border-radius: 10px;
+      background: rgba(20, 20, 24, .97);
+      color: #fff;
+      font: 600 12px/1.45 system-ui, sans-serif;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, .45);
+      pointer-events: auto;
+      text-decoration: none;
+    }
+    #${QUICKSELL_NOTIFICATIONS_ID} a:hover,
+    #${QUICKSELL_NOTIFICATIONS_ID} a:focus-visible {
+      background: rgba(48, 28, 40, .98);
     }
   `;
   document.head.append(style);
@@ -531,6 +696,107 @@
       ? "rgba(255, 130, 130, .72)"
       : "rgba(255, 255, 255, .25)";
   };
+
+  const profitablePanel = document.createElement("section");
+  profitablePanel.id = PROFITABLE_LISTINGS_ID;
+  profitablePanel.dataset.expanded = "false";
+  profitablePanel.setAttribute("aria-label", "All profitable listings");
+  const profitableToggle = document.createElement("button");
+  profitableToggle.type = "button";
+  profitableToggle.setAttribute("aria-expanded", "false");
+  const profitableToggleLabel = document.createElement("span");
+  const profitableToggleIcon = document.createElement("span");
+  profitableToggleIcon.setAttribute("aria-hidden", "true");
+  profitableToggleLabel.textContent = "All profitable listings (0)";
+  profitableToggleIcon.textContent = "+";
+  profitableToggle.append(profitableToggleLabel, profitableToggleIcon);
+  const profitableBody = document.createElement("div");
+  profitableBody.dataset.profitableListingsBody = "";
+  profitableBody.id = `${PROFITABLE_LISTINGS_ID}-body`;
+  profitableBody.setAttribute("aria-live", "polite");
+  profitableToggle.setAttribute("aria-controls", profitableBody.id);
+  const profitableMessage = document.createElement("p");
+  profitableMessage.dataset.profitableListingsMessage = "";
+  profitableMessage.textContent = "Waiting for market listings…";
+  profitableBody.append(profitableMessage);
+  profitablePanel.append(profitableToggle, profitableBody);
+  profitableToggle.addEventListener("click", () => {
+    const expanded = profitablePanel.dataset.expanded !== "true";
+    profitablePanel.dataset.expanded = String(expanded);
+    profitableToggle.setAttribute("aria-expanded", String(expanded));
+    profitableToggleIcon.textContent = expanded ? "−" : "+";
+    profitableBody.hidden = !expanded;
+  });
+  profitableBody.hidden = true;
+  document.body.append(profitablePanel);
+
+  const quicksellNotificationHost = document.createElement("div");
+  quicksellNotificationHost.id = QUICKSELL_NOTIFICATIONS_ID;
+  quicksellNotificationHost.setAttribute("aria-live", "polite");
+  quicksellNotificationHost.setAttribute("aria-label", "Quicksell deal alerts");
+  document.body.append(quicksellNotificationHost);
+  const notifiedQuicksellListings = new Set();
+
+  function getMarketListingUrl(kind, listing) {
+    const search = new URLSearchParams({
+      mode: "bin",
+      kind,
+      sort: "price_asc",
+    });
+    if (kind === "card") {
+      const player = listing.card.player;
+      const query =
+        typeof player === "object" && player !== null
+          ? player.username || player.name || player.id
+          : player;
+      if (query !== undefined && query !== null) {
+        search.set("q", String(query));
+      }
+    } else {
+      search.set("itemId", listing.item.id);
+    }
+    return `/market?${search}`;
+  }
+
+  function notifyQuicksellListings(kind, listings) {
+    if (
+      kind !== "card" ||
+      localStorage.getItem(QUICKSELL_ALERTS_ENABLED_KEY) === "false"
+    ) {
+      return;
+    }
+    for (const listing of listings.listings) {
+      if (
+        !WATCHED_CARD_RARITIES.has(listing.card.rarity) ||
+        listing.price >= LEGENDARY_QUICKSELL
+      ) {
+        continue;
+      }
+      const notificationKey = listing.id;
+      if (notifiedQuicksellListings.has(notificationKey)) continue;
+      notifiedQuicksellListings.add(notificationKey);
+
+      const notification = document.createElement("a");
+      notification.href = getMarketListingUrl("card", listing);
+      const player =
+        typeof listing.card.player === "object" && listing.card.player !== null
+          ? listing.card.player.username || listing.card.player.name
+          : `Player ${listing.card.player}`;
+      notification.textContent =
+        `${listing.card.rarity} card below quicksell · ${player} · ${listing.price.toLocaleString()} Stars (quicksell ${LEGENDARY_QUICKSELL.toLocaleString()})`;
+      quicksellNotificationHost.append(notification);
+      window.setTimeout(() => notification.remove(), 12_000);
+    }
+  }
+
+  function setProfitableListingsMessage(message, error = false) {
+    profitableToggleLabel.textContent = "All profitable listings (0)";
+    const paragraph = document.createElement("p");
+    paragraph.dataset.profitableListingsMessage = "";
+    paragraph.dataset.error = String(error);
+    paragraph.textContent = message;
+    profitableBody.replaceChildren(paragraph);
+  }
 
   const marketData = {
     card: { listings: null, loadedAt: 0, request: null },
@@ -798,6 +1064,58 @@
     return { grossProfit, fee, profit, profitPercent };
   }
 
+  function getCardDeal(candidate, listings) {
+    const comparableListings =
+      listings.byKey.get(getCardKey(candidate.card)) || [];
+    const otherPrices = getOtherSellerListings(candidate, comparableListings).map(
+      (other) => other.price,
+    );
+    let resalePrice = 0;
+    let exitLabel = "";
+
+    if (otherPrices.length >= MIN_COMPS) {
+      resalePrice = Math.min(...otherPrices);
+      exitLabel = "lowest market";
+    }
+
+    if (
+      candidate.card.rarity === "legendary" &&
+      LEGENDARY_QUICKSELL > resalePrice
+    ) {
+      resalePrice = LEGENDARY_QUICKSELL;
+      exitLabel = "quicksell";
+    }
+
+    return {
+      ...calculateProfit(
+        resalePrice,
+        candidate.price,
+        exitLabel === "quicksell" ? 0 : MARKET_LISTING_FEE_RATE,
+      ),
+      resalePrice,
+      exitLabel,
+      otherSellerCount: otherPrices.length,
+    };
+  }
+
+  function getItemDeal(candidate, listings) {
+    const comparableListings =
+      listings.byKey.get(candidate.item.id) || [];
+    const otherListings = getOtherSellerListings(candidate, comparableListings);
+    if (otherListings.length < MIN_COMPS) return null;
+
+    const medianUnitPrice = median(
+      otherListings.map((other) => other.price / other.item.qty),
+    );
+    const resalePrice = Math.round(medianUnitPrice * candidate.item.qty);
+    return {
+      ...calculateProfit(resalePrice, candidate.price),
+      resalePrice,
+      medianUnitPrice,
+      otherSellerCount: otherListings.length,
+    };
+  }
+
   function formatProfitPercent(profitPercent) {
     return profitPercent === null
       ? "N/A"
@@ -836,38 +1154,20 @@
     let opportunityCount = 0;
     for (const entry of cards) {
       const candidate = entry.listing;
-      const comparableListings =
-        listings.byKey.get(getCardKey(candidate.card)) || [];
-      const otherPrices = getOtherSellerListings(candidate, comparableListings).map(
-        (other) => other.price,
-      );
-      let resalePrice = 0;
-      let exitLabel = "";
-
-      if (otherPrices.length >= MIN_COMPS) {
-        resalePrice = Math.min(...otherPrices);
-        exitLabel = "lowest market";
-      }
-
-      if (
-        candidate.card.rarity === "legendary" &&
-        LEGENDARY_QUICKSELL > resalePrice
-      ) {
-        resalePrice = LEGENDARY_QUICKSELL;
-        exitLabel = "quicksell";
-      }
-
-      const { grossProfit, fee, profit, profitPercent } = calculateProfit(
+      const {
+        grossProfit,
+        fee,
+        profit,
+        profitPercent,
         resalePrice,
-        candidate.price,
-        exitLabel === "quicksell" ? 0 : MARKET_LISTING_FEE_RATE,
-      );
+        otherSellerCount,
+      } = getCardDeal(candidate, listings);
       if (
         setDealBadge(
           entry.cell,
           profit,
           formatProfitPercent(profitPercent),
-          `${otherPrices.length} other-seller listings · lowest resale ${resalePrice.toLocaleString()} · gross profit ${grossProfit.toLocaleString()} · listing fee ${fee.toLocaleString()} · net profit ${profit.toLocaleString()} · ${formatProfitPercent(profitPercent)} based on purchase price.`,
+          `${otherSellerCount} other-seller listings · lowest resale ${resalePrice.toLocaleString()} · gross profit ${grossProfit.toLocaleString()} · listing fee ${fee.toLocaleString()} · net profit ${profit.toLocaleString()} · ${formatProfitPercent(profitPercent)} based on purchase price.`,
         )
       ) {
         opportunityCount += 1;
@@ -884,34 +1184,75 @@
         setDealBadge(entry.cell, 0, "", "");
         continue;
       }
-      const comparableListings =
-        listings.byKey.get(candidate.item.id) || [];
-      const otherListings = getOtherSellerListings(candidate, comparableListings);
-      if (otherListings.length < MIN_COMPS) {
+      const deal = getItemDeal(candidate, listings);
+      if (!deal) {
         setDealBadge(entry.cell, 0, "", "");
         continue;
       }
-
-      const medianUnitPrice = median(
-        otherListings.map((other) => other.price / other.item.qty),
-      );
-      const resalePrice = Math.round(medianUnitPrice * candidate.item.qty);
-      const { grossProfit, fee, profit, profitPercent } = calculateProfit(
+      const {
+        grossProfit,
+        fee,
+        profit,
+        profitPercent,
         resalePrice,
-        candidate.price,
-      );
+        medianUnitPrice,
+        otherSellerCount,
+      } = deal;
       if (
         setDealBadge(
           entry.cell,
           profit,
           `item median · ${formatProfitPercent(profitPercent)}`,
-          `${otherListings.length} other-seller listings · median ${medianUnitPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })} each · resale ${resalePrice.toLocaleString()} · gross profit ${grossProfit.toLocaleString()} · listing fee ${fee.toLocaleString()} · net profit ${profit.toLocaleString()} · ${formatProfitPercent(profitPercent)} based on purchase price.`,
+          `${otherSellerCount} other-seller listings · median ${medianUnitPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })} each · resale ${resalePrice.toLocaleString()} · gross profit ${grossProfit.toLocaleString()} · listing fee ${fee.toLocaleString()} · net profit ${profit.toLocaleString()} · ${formatProfitPercent(profitPercent)} based on purchase price.`,
         )
       ) {
         opportunityCount += 1;
       }
     }
     return opportunityCount;
+  }
+
+  function renderProfitableListings(listings) {
+    const opportunities = [];
+    for (const listing of listings.listings) {
+      const deal = getCardDeal(listing, listings);
+      if (deal.profit > 0) opportunities.push({ listing, deal });
+    }
+    opportunities.sort((a, b) => b.deal.profit - a.deal.profit);
+    profitableToggleLabel.textContent =
+      `All profitable listings (${opportunities.length.toLocaleString()})`;
+
+    if (opportunities.length === 0) {
+      setProfitableListingsMessage("No profitable listings found in this category.");
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    for (const { listing, deal } of opportunities) {
+      const link = document.createElement("a");
+      link.dataset.profitableListing = "";
+      link.href = getMarketListingUrl("card", listing);
+      const title = document.createElement("span");
+      title.dataset.profitableListingTitle = "";
+      const player =
+        typeof listing.card.player === "object" && listing.card.player !== null
+          ? listing.card.player.username || listing.card.player.name
+          : `Player ${listing.card.player}`;
+      title.textContent = [
+        `Card · ${listing.card.rarity}`,
+        player,
+        listing.card.level ? `Lv. ${listing.card.level}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const details = document.createElement("span");
+      details.dataset.profitableListingDetails = "";
+      details.textContent =
+        `Buy ${listing.price.toLocaleString()} · net +${deal.profit.toLocaleString()} Stars · ${formatProfitPercent(deal.profitPercent)}`;
+      link.append(title, details);
+      fragment.append(link);
+    }
+    profitableBody.replaceChildren(fragment);
   }
 
   async function refresh(forceRefresh = false) {
@@ -936,6 +1277,7 @@
       if (visibleCards.length === 0 && visibleItemCells.length === 0) {
         clearHighlights();
         setMarketStats("Market flipping · no visible listings");
+        setProfitableListingsMessage("Waiting for market listings…");
         return;
       }
       const selectedMode = document
@@ -944,18 +1286,28 @@
       if (selectedMode && selectedMode !== "Buy now") {
         clearHighlights();
         setMarketStats("Market flipping · switch to Buy now to see deal stats");
+        setProfitableListingsMessage("Switch to Buy now to find profitable listings.");
         return;
       }
 
       const kind = visibleCards.length > 0 ? "card" : "item";
+      const otherKind = kind === "card" ? "item" : "card";
       const inactiveSelector =
         kind === "card" ? ".it-tile" : ".card-cell";
       clearHighlights(inactiveSelector);
       setMarketStats(
         `Market flipping · scanning ${kind} listings…`,
       );
+      const otherListingsPromise = getMarketListings(
+        otherKind,
+        forceRefresh,
+      ).then(
+        (otherListings) => ({ otherListings }),
+        (error) => ({ error }),
+      );
       const listings = await getMarketListings(kind, forceRefresh);
       if (stopped) return;
+      notifyQuicksellListings(kind, listings);
       const entries =
         kind === "card"
           ? getVisibleCards(listings)
@@ -967,9 +1319,38 @@
       setMarketStats(
         `Market flipping · ${opportunityCount} deal(s) / ${entries.length} visible ${kind} listing(s) · ${listings.listings.length.toLocaleString()} listings scanned · showing net profit gained`,
       );
+      const otherResult = await otherListingsPromise;
+      if (stopped) return;
+      if ("otherListings" in otherResult) {
+        notifyQuicksellListings(otherKind, otherResult.otherListings);
+      } else {
+        console.error(
+          `osu! gacha ${otherKind} market scan failed:`,
+          otherResult.error,
+        );
+      }
+      const cardListings =
+        kind === "card"
+          ? listings
+          : "otherListings" in otherResult
+            ? otherResult.otherListings
+            : null;
+      if (cardListings) {
+        renderProfitableListings(cardListings);
+      } else {
+        const errorMessage =
+          otherResult.error instanceof Error
+            ? otherResult.error.message
+            : String(otherResult.error);
+        setProfitableListingsMessage(
+          `Could not load card listings; the full list is unavailable. ${errorMessage}`,
+          true,
+        );
+      }
     } catch (error) {
       clearHighlights();
       setMarketStats(`Market flipping scan failed · ${error.message}`, true);
+      setProfitableListingsMessage(`Listing scan failed · ${error.message}`, true);
       console.error("osu! gacha market API scan failed:", error);
     } finally {
       isRefreshing = false;
@@ -987,7 +1368,9 @@
       if (
         record.target instanceof Element &&
         (record.target.closest(`.${OVERLAY_CLASS}`) ||
-          record.target.closest(`#${MARKET_STATS_ID}`))
+          record.target.closest(`#${MARKET_STATS_ID}`) ||
+          record.target.closest(`#${PROFITABLE_LISTINGS_ID}`) ||
+          record.target.closest(`#${QUICKSELL_NOTIFICATIONS_ID}`))
       ) {
         return false;
       }
@@ -998,8 +1381,12 @@
       return changedNodes.some(
         (node) =>
           !(node instanceof Element) ||
-          (!node.matches(`.${OVERLAY_CLASS}, #${MARKET_STATS_ID}`) &&
-            !node.querySelector(`.${OVERLAY_CLASS}, #${MARKET_STATS_ID}`)),
+          (!node.matches(
+            `.${OVERLAY_CLASS}, #${MARKET_STATS_ID}, #${PROFITABLE_LISTINGS_ID}, #${QUICKSELL_NOTIFICATIONS_ID}`,
+          ) &&
+            !node.querySelector(
+              `.${OVERLAY_CLASS}, #${MARKET_STATS_ID}, #${PROFITABLE_LISTINGS_ID}, #${QUICKSELL_NOTIFICATIONS_ID}`,
+            )),
       );
     });
     if (!needsRefresh) return;
@@ -1027,6 +1414,8 @@
     window.clearInterval(refreshTimer);
     document.getElementById(STYLE_ID)?.remove();
     document.getElementById(MARKET_STATS_ID)?.remove();
+    document.getElementById(PROFITABLE_LISTINGS_ID)?.remove();
+    document.getElementById(QUICKSELL_NOTIFICATIONS_ID)?.remove();
     document.querySelectorAll(`.${OVERLAY_CLASS}`).forEach((overlay) => overlay.remove());
     document.querySelectorAll(".osugacha-local-deal-host").forEach((host) => {
       host.classList.remove("osugacha-local-deal-host");
@@ -1044,6 +1433,7 @@
     "/collection",
     "/inventory",
     "/packs",
+    "/settings",
   ]);
   const syncOverlayWithRoute = () => {
     if (stopped) return;
@@ -1060,6 +1450,8 @@
     activeRoute = currentRoute;
     if (currentRoute === "/market") {
       activeStop = startMarketOverlay();
+    } else if (currentRoute === "/settings") {
+      activeStop = startSettingsOverlay();
     } else if (currentRoute) {
       activeStop = startCardValueOverlay();
     }
@@ -1072,6 +1464,8 @@
     activeStop = null;
     document.getElementById(STYLE_ID)?.remove();
     document.getElementById(MARKET_STATS_ID)?.remove();
+    document.getElementById(PROFITABLE_LISTINGS_ID)?.remove();
+    document.getElementById(QUICKSELL_NOTIFICATIONS_ID)?.remove();
     document.getElementById(CARD_VALUE_STYLE_ID)?.remove();
     document.querySelectorAll(`.${OVERLAY_CLASS}`).forEach((overlay) => overlay.remove());
     document.querySelectorAll(`.${CARD_VALUE_BADGE_CLASS}`).forEach((badge) => badge.remove());

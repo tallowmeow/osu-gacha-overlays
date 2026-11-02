@@ -5,6 +5,9 @@ A browser-console overlay for osu! gacha market listings and card values.
 ## Features
 
 - On `/market`, compares visible Buy now card and item listings with other sellers and highlights profitable deals.
+- Adds a collapsible panel at the bottom-right of `/market` with all profitable Buy now card listings; select one to open its filtered market results.
+- Shows clickable, temporary alerts for Legendary, Mythic, and Divine cards listed below the 375-Star quicksell value; alerts open filtered market results and do not repeat during the same page session.
+- Adds a **Quicksell alerts** on/off button to `/settings`; the preference is saved on this device.
 - Card comparisons match card details while ignoring Eidolon and use the lowest comparable price.
 - Item comparisons use median price per item.
 - Profit percentages are net profit relative to the listing purchase price. Market-sale calculations subtract the 2% listing fee from the resale price; legendary quicksell does not incur a listing fee.
