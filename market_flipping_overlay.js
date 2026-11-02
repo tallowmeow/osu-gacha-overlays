@@ -1,12 +1,54 @@
+// ==UserScript==
+// @name         osu! gacha market and card overlays
+// @namespace    https://github.com/tallowmeow/osu-gacha-overlays
+// @version      1.0.1
+// @description  Shows market flipping stats and in-game card values.
+// @match        https://osugacha.com/*
+// @run-at       document-idle
+// @grant        none
+// @updateURL    https://raw.githubusercontent.com/tallowmeow/osu-gacha-overlays/main/market_flipping_overlay.js
+// @downloadURL  https://raw.githubusercontent.com/tallowmeow/osu-gacha-overlays/main/market_flipping_overlay.js
+// ==/UserScript==
+
 // Card value and market deal overlays for osu! gacha.
-// Paste into the browser console on /market, /collection, /inventory, /packs, or /cards/:id.
+// Install with Tampermonkey to auto-run after page loads and refreshes.
 (() => {
+  const API_ORIGIN = "https://osugacha.com";
+  if (window.location.origin !== API_ORIGIN) {
+    throw new Error("Run this overlay on osu! gacha.");
+  }
+
+  const AUTOEXEC_DISABLED_KEY = "osugachaOverlayAutoexecDisabled";
+  const bindConsoleCommand = (name, action) => {
+    Object.defineProperty(window, name, {
+      configurable: true,
+      value: {
+        [Symbol.toPrimitive]() {
+          action();
+          return 0;
+        },
+      },
+    });
+  };
+  bindConsoleCommand("disable", () => {
+    localStorage.setItem(AUTOEXEC_DISABLED_KEY, "true");
+    window.osugachaOverlayStop?.();
+  });
+  bindConsoleCommand("enable", () => {
+    localStorage.removeItem(AUTOEXEC_DISABLED_KEY);
+    window.location.reload();
+  });
+
+  if (localStorage.getItem(AUTOEXEC_DISABLED_KEY) === "true") {
+    window.osugachaOverlayStop?.();
+    return;
+  }
+
   const STYLE_ID = "osugacha-local-deal-style";
   const MARKET_STATS_ID = "osugacha-market-flipping-stats";
   const OVERLAY_CLASS = "osugacha-local-deal-overlay";
   const MIN_COMPS = 2;
   const LEGENDARY_QUICKSELL = 375;
-  const API_ORIGIN = "https://osugacha.com";
   const PAGE_SIZE = 100;
   const PAGE_CONCURRENCY = 6;
   const API_REFRESH_MS = 60_000;
@@ -27,14 +69,7 @@
     path === "/market" ||
     CARD_PATH.test(path);
 
-  if (
-    window.location.origin !== API_ORIGIN ||
-    !isSupportedPath
-  ) {
-    throw new Error(
-      "Run this overlay on osu! gacha /market, /collection, /inventory, /packs, or /cards/:id.",
-    );
-  }
+  if (!isSupportedPath) return;
 
   window.osugachaOverlayStop?.();
   window.osugachaLocalOverlayStop?.();
