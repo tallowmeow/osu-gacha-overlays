@@ -5,9 +5,9 @@ A browser-console overlay for osu! gacha market listings and card values.
 ## Features
 
 - On `/market`, compares visible Buy now card and item listings with other sellers and highlights profitable deals.
-- Card comparisons use matching card details, including Eidolon, and median comparable prices.
+- Card comparisons match card details while ignoring Eidolon and use the lowest comparable price.
 - Item comparisons use median price per item.
-- Profit percentages are net profit relative to the listing purchase price. Market-sale calculations account for the 5% fee on positive gross profit; legendary quicksell does not.
+- Profit percentages are net profit relative to the listing purchase price. Market-sale calculations subtract the 2% listing fee from the resale price; legendary quicksell does not incur a listing fee.
 - On `/packs`, `/collection`, `/inventory`, and `/cards/:id`, displays each card's in-game **Value** field.
 - Automatically switches between market and card-value overlays when navigating supported pages.
 

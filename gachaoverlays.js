@@ -48,6 +48,7 @@
   const MARKET_STATS_ID = "osugacha-market-flipping-stats";
   const OVERLAY_CLASS = "osugacha-local-deal-overlay";
   const MIN_COMPS = 2;
+  const MARKET_LISTING_FEE_RATE = 0.02;
   const LEGENDARY_QUICKSELL = 375;
   const PAGE_SIZE = 100;
   const PAGE_CONCURRENCY = 6;
@@ -566,7 +567,6 @@
       rarity: card.rarity,
       level: card.level,
       ascension: card.ascension,
-      eidolon: card.eidolon,
       skill: card.skill,
       passive: card.passive,
       signature,
@@ -785,13 +785,17 @@
       : (sorted[middle - 1] + sorted[middle]) / 2;
   }
 
-  function calculateProfit(resalePrice, purchasePrice, feeRate = 0.05) {
+  function calculateProfit(
+    resalePrice,
+    purchasePrice,
+    feeRate = MARKET_LISTING_FEE_RATE,
+  ) {
     const grossProfit = resalePrice - purchasePrice;
-    const fee = Math.floor(Math.max(0, grossProfit) * feeRate);
+    const fee = Math.floor(Math.max(0, resalePrice) * feeRate);
     const profit = grossProfit - fee;
     const profitPercent =
       purchasePrice > 0 ? (profit / purchasePrice) * 100 : null;
-    return { grossProfit, profit, profitPercent };
+    return { grossProfit, fee, profit, profitPercent };
   }
 
   function formatProfitPercent(profitPercent) {
@@ -841,8 +845,8 @@
       let exitLabel = "";
 
       if (otherPrices.length >= MIN_COMPS) {
-        resalePrice = median(otherPrices);
-        exitLabel = "market";
+        resalePrice = Math.min(...otherPrices);
+        exitLabel = "lowest market";
       }
 
       if (
@@ -853,18 +857,17 @@
         exitLabel = "quicksell";
       }
 
-      const { grossProfit, profit, profitPercent } = calculateProfit(
+      const { grossProfit, fee, profit, profitPercent } = calculateProfit(
         resalePrice,
         candidate.price,
-        exitLabel === "quicksell" ? 0 : 0.05,
+        exitLabel === "quicksell" ? 0 : MARKET_LISTING_FEE_RATE,
       );
-      const eidolon = Number(candidate.card.eidolon) || 0;
       if (
         setDealBadge(
           entry.cell,
           profit,
-          `E${eidolon} ${exitLabel} · ${formatProfitPercent(profitPercent)}`,
-          `${otherPrices.length} other-seller listings · resale ${resalePrice.toLocaleString()} · gross profit ${grossProfit.toLocaleString()} · net profit ${profit.toLocaleString()} · ${formatProfitPercent(profitPercent)} based on purchase price.`,
+          formatProfitPercent(profitPercent),
+          `${otherPrices.length} other-seller listings · lowest resale ${resalePrice.toLocaleString()} · gross profit ${grossProfit.toLocaleString()} · listing fee ${fee.toLocaleString()} · net profit ${profit.toLocaleString()} · ${formatProfitPercent(profitPercent)} based on purchase price.`,
         )
       ) {
         opportunityCount += 1;
@@ -893,7 +896,7 @@
         otherListings.map((other) => other.price / other.item.qty),
       );
       const resalePrice = Math.round(medianUnitPrice * candidate.item.qty);
-      const { grossProfit, profit, profitPercent } = calculateProfit(
+      const { grossProfit, fee, profit, profitPercent } = calculateProfit(
         resalePrice,
         candidate.price,
       );
@@ -902,7 +905,7 @@
           entry.cell,
           profit,
           `item median · ${formatProfitPercent(profitPercent)}`,
-          `${otherListings.length} other-seller listings · median ${medianUnitPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })} each · resale ${resalePrice.toLocaleString()} · gross profit ${grossProfit.toLocaleString()} · net profit ${profit.toLocaleString()} · ${formatProfitPercent(profitPercent)} based on purchase price.`,
+          `${otherListings.length} other-seller listings · median ${medianUnitPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })} each · resale ${resalePrice.toLocaleString()} · gross profit ${grossProfit.toLocaleString()} · listing fee ${fee.toLocaleString()} · net profit ${profit.toLocaleString()} · ${formatProfitPercent(profitPercent)} based on purchase price.`,
         )
       ) {
         opportunityCount += 1;
