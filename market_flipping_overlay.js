@@ -57,6 +57,24 @@
   const CARD_VALUE_BADGE_CLASS = "osugacha-card-value-badge";
   const CARD_VALUE_ABOVE_NEW_CLASS = `${CARD_VALUE_BADGE_CLASS}-above-new`;
   const CARD_VALUE_HOST_CLASS = "osugacha-card-value-host";
+  const PULL_NOTIFICATION_CLASS = "osugacha-pull-notification";
+  const WATCHED_CARD_RARITIES = new Set([
+    "divine",
+    "mythic",
+    "mythical",
+    "legendary",
+  ]);
+  const WATCHED_COPY_NUMBERS = new Set([
+    "0",
+    "1",
+    "2",
+    "3",
+    "67",
+    "69",
+    "677",
+    "699",
+    "727",
+  ]);
   const CARD_VALUE_CONCURRENCY = 6;
   const CARD_VALUE_REFRESH_MS = 60_000;
   const CARD_VALUE_DEBOUNCE_MS = 160;
@@ -87,6 +105,9 @@
   document.querySelectorAll(`.${CARD_VALUE_HOST_CLASS}`).forEach((host) => {
     host.classList.remove(CARD_VALUE_HOST_CLASS);
   });
+  document.querySelectorAll(".osugacha-pull-notifications").forEach((host) => {
+    host.remove();
+  });
 
   function startCardValueOverlay() {
     const style = document.createElement("style");
@@ -113,16 +134,135 @@
         pointer-events: none;
       }
       .${CARD_VALUE_ABOVE_NEW_CLASS} { z-index: 10; }
+      .osugacha-pull-notifications {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 2147483647;
+        display: grid;
+        gap: 8px;
+        max-width: min(360px, calc(100vw - 24px));
+        pointer-events: none;
+      }
+      .${PULL_NOTIFICATION_CLASS} {
+        padding: 10px 14px;
+        border: 1px solid rgba(255, 215, 0, .7);
+        border-radius: 10px;
+        background: rgba(20, 20, 24, .96);
+        color: #fff;
+        font: 700 14px/1.4 system-ui, sans-serif;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, .45);
+        animation: osugacha-pull-notification-in .2s ease-out;
+      }
+      @keyframes osugacha-pull-notification-in {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
     `;
     document.head.append(style);
+    const pullNotificationHost = document.createElement("div");
+    pullNotificationHost.className = "osugacha-pull-notifications";
+    document.body.append(pullNotificationHost);
 
     const cardCache = new Map();
     const cardLoadedAt = new Map();
     const cardRequests = new Map();
+    const notifiedCardIds = new Set();
+    const newlyPulledCardIds = new Set();
+    let notificationPermissionRequest = null;
     let isRefreshing = false;
     let refreshQueued = false;
     let stopped = false;
     let refreshDebounce = 0;
+
+    function notifyIfPulledWatchedCard(card, isNewlyPulled) {
+      if (!card || !card.id || !isNewlyPulled) return;
+      const rarity = String(card.rarity ?? "").toLowerCase();
+      const copyNumber =
+        card.copy_number === undefined || card.copy_number === null
+          ? null
+          : String(card.copy_number).replaceAll(",", "");
+      const isWatchedRarity = WATCHED_CARD_RARITIES.has(rarity);
+      const isWatchedCopyNumber =
+        copyNumber !== null && WATCHED_COPY_NUMBERS.has(copyNumber);
+      if (!isWatchedRarity && !isWatchedCopyNumber) return;
+      const cardId = String(card.id);
+      if (notifiedCardIds.has(cardId)) return;
+      notifiedCardIds.add(cardId);
+
+      const label = rarity.charAt(0).toUpperCase() + rarity.slice(1);
+      const title = isWatchedCopyNumber
+        ? `Pulled watched copy #${copyNumber}!`
+        : `Pulled ${label}!`;
+      const body = `${card.name || "Unknown card"} · ${
+        copyNumber === null ? `Card #${cardId}` : `Copy #${copyNumber}`
+      }`;
+      const toast = document.createElement("div");
+      toast.className = PULL_NOTIFICATION_CLASS;
+      toast.textContent = `${title} ${body}`;
+      pullNotificationHost.append(toast);
+      window.setTimeout(() => toast.remove(), 8000);
+
+      if (!("Notification" in window)) return;
+      if (window.Notification.permission === "default") {
+        if (!notificationPermissionRequest) {
+          notificationPermissionRequest = window.Notification.requestPermission()
+            .finally(() => {
+              notificationPermissionRequest = null;
+            });
+        }
+        void notificationPermissionRequest
+          .then((permission) => {
+            if (permission === "granted") {
+              showSystemNotification(title, body, cardId);
+            }
+          })
+          .catch((error) => {
+            console.warn("osu! gacha notification permission request failed:", error);
+          });
+      } else if (window.Notification.permission === "granted") {
+        showSystemNotification(title, body, cardId);
+      }
+    }
+
+    function showSystemNotification(title, body, cardId) {
+      try {
+        const notification = new window.Notification(title, {
+          body,
+          tag: `osugacha-card-${cardId}`,
+        });
+        window.setTimeout(() => notification.close(), 6000);
+      } catch (error) {
+        console.warn("osu! gacha system notification failed:", error);
+      }
+    }
+
+    function markNewlyAddedCards(records) {
+      if (window.location.pathname !== "/packs") return;
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          const hosts = new Set();
+          const containingHost = node.closest(
+            ".gacha-card:not(.skeleton-card)",
+          );
+          if (containingHost) hosts.add(containingHost);
+          if (node.matches(".gacha-card:not(.skeleton-card)")) hosts.add(node);
+          node
+            .querySelectorAll(".gacha-card:not(.skeleton-card)")
+            .forEach((host) => hosts.add(host));
+          for (const host of hosts) {
+            const href = host
+              .querySelector('a.gc-hit[href^="/cards/"]')
+              ?.getAttribute("href");
+            const cardId = href
+              ? new URL(href, API_ORIGIN).pathname.match(CARD_PATH)?.[1]
+              : null;
+            if (cardId) newlyPulledCardIds.add(cardId);
+          }
+        }
+      }
+    }
 
     async function getJson(path) {
       const response = await fetch(new URL(path, API_ORIGIN), {
@@ -264,7 +404,15 @@
         if (stopped) return;
         for (const [index, entry] of entries.entries()) {
           const card = cards[index];
-          if (card) renderValue(entry.host, card.value);
+          if (!card) continue;
+          const isNewlyPulled = Boolean(
+            newlyPulledCardIds.has(entry.cardId) ||
+            entry.host.closest(".flip-front")?.querySelector(".new-badge") ||
+            entry.host.querySelector(".new-badge"),
+          );
+          notifyIfPulledWatchedCard(card, isNewlyPulled);
+          newlyPulledCardIds.delete(entry.cardId);
+          renderValue(entry.host, card.value);
         }
       } catch (error) {
         clearBadges();
@@ -279,6 +427,7 @@
     }
 
     const observer = new MutationObserver((records) => {
+      markNewlyAddedCards(records);
       const cardSelector =
         '.gacha-card:not(.skeleton-card), a.gc-hit[href^="/cards/"]';
       const needsRefresh = records.some((record) => {
@@ -306,11 +455,11 @@
       subtree: true,
       characterData: true,
     });
+    void refresh();
     const refreshTimer = window.setInterval(
       () => void refresh(true),
       CARD_VALUE_REFRESH_MS,
     );
-    void refresh();
 
     return () => {
       if (stopped) return;
@@ -319,6 +468,7 @@
       window.clearTimeout(refreshDebounce);
       window.clearInterval(refreshTimer);
       clearBadges();
+      pullNotificationHost.remove();
       document.getElementById(CARD_VALUE_STYLE_ID)?.remove();
     };
   }
