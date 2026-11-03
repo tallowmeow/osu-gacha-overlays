@@ -5,13 +5,11 @@ A browser-console overlay for osu! gacha market listings and card values.
 ## Features
 
 - On `/market`, compares visible Buy now card and item listings with other sellers and highlights profitable deals.
-- Adds a collapsible panel at the bottom-right of `/market` with all profitable Buy now card listings; select one to open its filtered market results.
-- Shows clickable, temporary alerts for Legendary, Mythic, and Divine cards listed below the 375-Star quicksell value; alerts open filtered market results and do not repeat during the same page session.
-- Adds a **Quicksell alerts** on/off button to `/settings`; the preference is saved on this device.
 - Card comparisons match card details while ignoring Eidolon and use the lowest comparable price.
 - Item comparisons use median price per item.
 - Profit percentages are net profit relative to the listing purchase price. Market-sale calculations subtract the 2% listing fee from the resale price; legendary quicksell does not incur a listing fee.
 - On `/packs`, `/collection`, `/inventory`, and `/cards/:id`, displays each card's in-game **Value** field.
+- On `/packs`, shows top-right in-page notifications when a newly pulled card is Legendary, Mythic, Divine, or a watched copy number; it does not request Firefox system-notification permission.
 - Automatically switches between market and card-value overlays when navigating supported pages.
 
 ## Install for automatic execution
@@ -19,7 +17,7 @@ A browser-console overlay for osu! gacha market listings and card values.
 1. Install the Tampermonkey extension in Firefox.
 2. Open the [raw userscript](https://raw.githubusercontent.com/tallowmeow/osu-gacha-overlays/main/market_flipping_overlay.js).
 3. Confirm **Install** in Tampermonkey.
-4. Open or refresh osu! gacha. The script runs automatically on supported pages.
+4. Open or refresh a supported osu! gacha page. The script runs automatically there.
 
 With the userscript installed, enter `-disable` in the Firefox Web Console to stop the overlay and keep it disabled across refreshes. Enter `-enable` to re-enable it and reload the page. These commands require the userscript to be installed in Tampermonkey.
 
